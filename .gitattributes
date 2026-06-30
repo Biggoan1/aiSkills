@@ -1,0 +1,5 @@
+# Shell scripts and the Node generator must stay LF — CRLF breaks the shebang
+# on Linux/macOS and the generated resumeVibing.sh.
+*.sh   text eol=lf
+*.js   text eol=lf
+*.ps1  text eol=crlf
