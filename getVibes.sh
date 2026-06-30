@@ -1,26 +1,74 @@
 #!/usr/bin/env bash
-# getVibes.sh - one-shot installer for your Claude Code skills.
+# getVibes.sh - one-shot installer for your Claude Code / Qwen / Codex skills.
 #
-# Pulls every skill from your aiSkills GitHub repo and installs it into
-# ~/.claude/skills, so a fresh machine is one command away from all your skills.
+# Pulls every skill from your aiSkills GitHub repo and installs it into the
+# skills directory of the LLM CLI(s) you choose, so a fresh machine is one
+# command away from all your skills.
 #
 # A "skill" is any top-level folder in the repo that contains a SKILL.md.
 # Each installed skill folder is replaced wholesale (clean install).
 #
+# Target LLMs map to the convention ~/.<tool>/skills :
+#   claude -> ~/.claude/skills
+#   qwen   -> ~/.qwen/skills
+#   codex  -> ~/.codex/skills
+#   <any>  -> ~/.<any>/skills   (unknown names fall back to this)
+#
 # Usage:
-#   ./getVibes.sh                       # defaults: Biggoan1/aiSkills @ main
-#   ./getVibes.sh You/yourSkills main   # custom repo / branch
-#   CLAUDE_SKILLS_DIR=/alt/skills ./getVibes.sh
+#   ./getVibes.sh                          # claude (default)
+#   ./getVibes.sh --llm qwen
+#   ./getVibes.sh --llm claude,qwen,codex
+#   ./getVibes.sh --llm all
+#   ./getVibes.sh --skills-dir /alt/skills # explicit, wins over --llm
+#   ./getVibes.sh --repo You/yourSkills --branch main
 #
 # Uses git if it's on PATH, otherwise downloads the branch tarball from GitHub.
 set -euo pipefail
 
-REPO="${1:-Biggoan1/aiSkills}"
-BRANCH="${2:-main}"
-SKILLS_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
+REPO="Biggoan1/aiSkills"
+BRANCH="main"
+LLM="claude"
+SKILLS_DIR="${CLAUDE_SKILLS_DIR:-}"
+
+usage() { sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo)       REPO="$2"; shift 2;;
+    --branch)     BRANCH="$2"; shift 2;;
+    --llm)        LLM="$2"; shift 2;;
+    --skills-dir) SKILLS_DIR="$2"; shift 2;;
+    -h|--help)    usage; exit 0;;
+    *) echo "getVibes: unknown argument '$1' (try --help)" >&2; exit 1;;
+  esac
+done
+
+llm_dir() {
+  case "$1" in
+    claude) echo "$HOME/.claude/skills";;
+    qwen)   echo "$HOME/.qwen/skills";;
+    codex)  echo "$HOME/.codex/skills";;
+    *)      echo "$HOME/.$1/skills";;
+  esac
+}
+
+# Resolve target skills dirs.
+targets=()
+if [ -n "$SKILLS_DIR" ]; then
+  targets+=("$SKILLS_DIR")
+else
+  names="$LLM"
+  [ "$LLM" = "all" ] && names="claude,qwen,codex"
+  IFS=',' read -ra _arr <<< "$names"
+  for n in "${_arr[@]}"; do
+    n="$(echo "$n" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+    [ -n "$n" ] && targets+=("$(llm_dir "$n")")
+  done
+fi
 
 echo ""
 echo "==== getVibes: installing skills from $REPO ($BRANCH) ===="
+echo "Targets: ${targets[*]}"
 
 tmp="$(mktemp -d)"
 cleanup() { rm -rf "$tmp"; }
@@ -48,23 +96,33 @@ fi
 
 [ -d "$src" ] || { echo "ERROR: could not locate downloaded repo at $src" >&2; exit 1; }
 
-mkdir -p "$SKILLS_DIR"
+install_into() {
+  local dest="$1" count=0 name
+  mkdir -p "$dest"
+  for d in "$src"/*/; do
+    [ -f "${d}SKILL.md" ] || continue
+    name="$(basename "$d")"
+    rm -rf "${dest:?}/$name"
+    cp -R "$d" "$dest/$name"
+    echo "  [ok] $name"
+    count=$((count + 1))
+  done
+  echo "  ($count skill(s) -> $dest)"
+  TOTAL=$((TOTAL + count))
+}
 
-count=0
-for d in "$src"/*/; do
-  [ -f "${d}SKILL.md" ] || continue
-  name="$(basename "$d")"
-  rm -rf "${SKILLS_DIR:?}/$name"
-  cp -R "$d" "$SKILLS_DIR/$name"
-  echo "  [ok] $name"
-  count=$((count + 1))
+TOTAL=0
+for dest in "${targets[@]}"; do
+  echo ""
+  echo "--> $dest"
+  install_into "$dest"
 done
 
-if [ "$count" -eq 0 ]; then
+if [ "$TOTAL" -eq 0 ]; then
   echo "WARN: no skill folders (containing SKILL.md) found in $REPO." >&2
   exit 0
 fi
 
 echo ""
-echo "Installed $count skill(s) to $SKILLS_DIR"
-echo "Restart Claude Code (or start a new session) to pick them up."
+echo "Installed $TOTAL skill folder(s) across ${#targets[@]} target(s)."
+echo "Restart the LLM CLI (or start a new session) to pick them up."
