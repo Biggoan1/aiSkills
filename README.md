@@ -2,6 +2,33 @@
 
 A collection of Claude Code skills.
 
+## Quick install (getVibes)
+
+`getVibes` is a one-shot bootstrap that downloads **every** skill in this repo
+(any top-level folder containing a `SKILL.md`) into `~/.claude/skills`. Use git if
+present, otherwise it falls back to the GitHub branch archive.
+
+**Windows:**
+```powershell
+# from a clone of this repo:
+powershell -ExecutionPolicy Bypass -File .\getVibes.ps1
+
+# or straight from GitHub, no clone needed:
+powershell -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/Biggoan1/aiSkills/main/getVibes.ps1 | iex"
+```
+
+**Linux / macOS:**
+```bash
+# from a clone of this repo:
+./getVibes.sh
+
+# or straight from GitHub, no clone needed:
+curl -fsSL https://raw.githubusercontent.com/Biggoan1/aiSkills/main/getVibes.sh | bash
+```
+
+Override the target with `-SkillsDir <path>` (PowerShell) or `CLAUDE_SKILLS_DIR=<path>`
+(shell). Restart Claude Code afterward to pick up the new skills.
+
 ## Skills
 
 | Skill | What it does |
